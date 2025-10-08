@@ -1,0 +1,162 @@
+{{define "content"}}
+<!-- 当前连接信息 -->
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="card bg-light border-primary">
+            <div class="card-body">
+                <div class="row align-items-center">
+                    <div class="col-md-6">
+                        <h6 class="mb-0">
+                            <i class="fas fa-plug text-primary me-2"></i>
+                            当前连接：<strong>{{if .currentConnection}}{{.currentConnection.Name}} ({{.currentConnection.Host}}:{{.currentConnection.Port}}){{else}}未配置连接{{end}}</strong>
+                        </h6>
+                    </div>
+                    <div class="col-md-6 text-end">
+                        <a href="/connections" class="btn btn-outline-primary">
+                            <i class="fas fa-cog me-1"></i>管理连接
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h5 class="mb-0">
+                    <i class="fas fa-database me-2"></i>数据库列表
+                </h5>
+                <button class="btn btn-primary" onclick="createDatabase()">
+                    <i class="fas fa-plus me-1"></i>创建数据库
+                </button>
+            </div>
+            <div class="card-body">
+                <div class="table-responsive">
+                    <table class="table table-striped table-hover">
+                        <thead class="table-dark">
+                            <tr>
+                                <th>数据库名称</th>
+                                <th>操作</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {{range .databases}}
+                            <tr>
+                                <td>
+                                    <a href="/database/{{.}}" class="text-decoration-none">
+                                        <i class="fas fa-database me-2"></i>{{.}}
+                                    </a>
+                                </td>
+                                <td>
+                                    <div class="btn-group btn-group-sm">
+                                        <a href="/database/{{.}}" class="btn btn-outline-primary">
+                                            <i class="fas fa-eye"></i> 查看
+                                        </a>
+                                        <button class="btn btn-outline-danger" onclick="deleteDatabase('{{.}}')">
+                                            <i class="fas fa-trash"></i> 删除
+                                        </button>
+                                    </div>
+                                </td>
+                            </tr>
+                            {{else}}
+                            <tr>
+                                <td colspan="2" class="text-center text-muted">
+                                    <i class="fas fa-inbox fa-3x mb-3"></i>
+                                    <p>暂无数据库</p>
+                                </td>
+                            </tr>
+                            {{end}}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+</div>
+
+<!-- 创建数据库模态框 -->
+<div class="modal fade" id="createDatabaseModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">
+                    <i class="fas fa-plus me-2"></i>创建数据库
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <form id="createDatabaseForm">
+                    <div class="mb-3">
+                        <label for="dbName" class="form-label">数据库名称</label>
+                        <input type="text" class="form-control" id="dbName" required>
+                        <div class="form-text">数据库名称只能包含字母、数字、下划线和连字符</div>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+                <button type="button" class="btn btn-primary" onclick="submitCreateDatabase()">创建</button>
+            </div>
+        </div>
+    </div>
+</div>
+{{end}}
+
+{{define "scripts"}}
+<script>
+function createDatabase() {
+    new bootstrap.Modal(document.getElementById('createDatabaseModal')).show();
+}
+
+function submitCreateDatabase() {
+    const dbName = document.getElementById('dbName').value;
+    if (!dbName) {
+        showError('请输入数据库名称');
+        return;
+    }
+
+    fetch('/api/v1/databases', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ name: dbName })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.error) {
+            showError(data.error);
+        } else {
+            showSuccess('数据库创建成功');
+            bootstrap.Modal.getInstance(document.getElementById('createDatabaseModal')).hide();
+            setTimeout(() => location.reload(), 1000);
+        }
+    })
+    .catch(error => showError(error.message));
+}
+
+function deleteDatabase(dbName) {
+    if (!confirm(`确定要删除数据库 "${dbName}" 吗？此操作不可恢复！`)) {
+        return;
+    }
+
+    fetch('/api/v1/databases/' + dbName, {
+        method: 'DELETE'
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.error) {
+            showError(data.error);
+        } else {
+            showSuccess('数据库删除成功');
+            setTimeout(() => location.reload(), 1000);
+        }
+    })
+    .catch(error => showError(error.message));
+}
+</script>
+{{end}}

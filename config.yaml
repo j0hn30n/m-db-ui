@@ -1,0 +1,39 @@
+# MongoDB管理工具配置文件
+server:
+  port: "8082"
+  host: "0.0.0.0"
+
+mongodb:
+  # MongoDB连接URI
+  uri: "mongodb://localhost:27017"
+  # 连接超时时间(秒)
+  timeout: 10
+  # 连接池配置
+  max_pool_size: 100
+  min_pool_size: 10
+
+# CORS配置
+cors:
+  allowed_origins:
+    - "*"
+  allowed_methods:
+    - "GET"
+    - "POST"
+    - "PUT"
+    - "DELETE"
+    - "OPTIONS"
+  allowed_headers:
+    - "Origin"
+    - "Content-Type"
+    - "Accept"
+    - "Authorization"
+
+# 分页配置
+pagination:
+  default_page_size: 20
+  max_page_size: 100
+
+# 日志配置
+logging:
+  level: "info"
+  format: "json"

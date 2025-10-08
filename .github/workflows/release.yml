@@ -1,0 +1,232 @@
+name: Build and Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+env:
+  GO_VERSION: '1.21'
+
+jobs:
+  build:
+    name: Build for ${{ matrix.os }}/${{ matrix.arch }}
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      matrix:
+        include:
+          # Windows
+          - os: windows
+            arch: amd64
+            runner: windows-latest
+            binary_name: m-db-ui.exe
+            artifact_name: m-db-ui-windows-amd64.exe
+          - os: windows
+            arch: arm64
+            runner: windows-latest
+            binary_name: m-db-ui.exe
+            artifact_name: m-db-ui-windows-arm64.exe
+
+          # Linux
+          - os: linux
+            arch: amd64
+            runner: ubuntu-latest
+            binary_name: m-db-ui
+            artifact_name: m-db-ui-linux-amd64
+          - os: linux
+            arch: arm64
+            runner: ubuntu-latest
+            binary_name: m-db-ui
+            artifact_name: m-db-ui-linux-arm64
+          - os: linux
+            arch: 386
+            runner: ubuntu-latest
+            binary_name: m-db-ui
+            artifact_name: m-db-ui-linux-386
+
+          # macOS
+          - os: darwin
+            arch: amd64
+            runner: macos-latest
+            binary_name: m-db-ui
+            artifact_name: m-db-ui-darwin-amd64
+          - os: darwin
+            arch: arm64
+            runner: macos-latest
+            binary_name: m-db-ui
+            artifact_name: m-db-ui-darwin-arm64
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Go
+      uses: actions/setup-go@v4
+      with:
+        go-version: ${{ env.GO_VERSION }}
+
+    - name: Cache Go modules
+      uses: actions/cache@v3
+      with:
+        path: |
+          ~/.cache/go-build
+          ~/go/pkg/mod
+        key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
+        restore-keys: |
+          ${{ runner.os }}-go-
+
+    - name: Download dependencies
+      run: go mod download
+
+    - name: Build binary
+      shell: bash
+      run: |
+        mkdir -p dist
+
+        # Set GOOS and GOARCH for cross-compilation
+        export GOOS=${{ matrix.os }}
+        export GOARCH=${{ matrix.arch }}
+        export CGO_ENABLED=0
+
+        # Add version info
+        VERSION=${GITHUB_REF#refs/tags/}
+        if [[ $VERSION == "" ]]; then
+          VERSION="dev"
+        fi
+
+        # Build with ldflags for version info
+        go build -ldflags "-X main.version=$VERSION -s -w" \
+          -o dist/${{ matrix.binary_name }} \
+          main.go
+
+    - name: Create archive (Unix)
+      if: matrix.os != 'windows'
+      run: |
+        cd dist
+        tar -czf ../${{ matrix.artifact_name }}.tar.gz ${{ matrix.binary_name }}
+        cd ..
+
+    - name: Create archive (Windows)
+      if: matrix.os == 'windows'
+      run: |
+        cd dist
+        7z a ../${{ matrix.artifact_name }}.zip ${{ matrix.binary_name }}
+        cd ..
+
+    - name: Upload artifact (Unix)
+      if: matrix.os != 'windows'
+      uses: actions/upload-artifact@v3
+      with:
+        name: ${{ matrix.artifact_name }}
+        path: ${{ matrix.artifact_name }}.tar.gz
+
+    - name: Upload artifact (Windows)
+      if: matrix.os == 'windows'
+      uses: actions/upload-artifact@v3
+      with:
+        name: ${{ matrix.artifact_name }}
+        path: ${{ matrix.artifact_name }}.zip
+
+  release:
+    name: Create Release
+    needs: build
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/')
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Download all artifacts
+      uses: actions/download-artifact@v3
+      with:
+        path: artifacts
+
+    - name: Create Release
+      uses: softprops/action-gh-release@v1
+      with:
+        name: MongoDB Management Tool ${{ github.ref_name }}
+        body: |
+          ## MongoDB管理工具 v${{ github.ref_name }}
+
+          一个功能完整的MongoDB Web管理工具，支持多连接管理、数据库操作、集合管理和文档编辑。
+
+          ### 功能特性：
+          - 🌐 Web界面管理MongoDB
+          - 🔗 多连接管理和切换
+          - 📊 数据库、集合、文档的CRUD操作
+          - 🔍 文档查询功能
+          - 📝 JSON文档编辑
+          - 🌍 跨平台支持
+          - ⚡ 静态资源本地化，无需网络依赖
+
+          ### 使用方法：
+          ```bash
+          # 使用默认配置启动（127.0.0.1:8082）
+          ./m-db-ui
+
+          # 指定主机和端口启动
+          ./m-db-ui -host 0.0.0.0 -port 8080
+
+          # 显示帮助信息
+          ./m-db-ui --help
+          ```
+
+          ### 系统要求：
+          - MongoDB服务器连接
+          - 现代Web浏览器
+
+          ### 下载说明：
+          - **Windows**: 下载 `m-db-ui-windows-*.exe` 文件
+          - **Linux**: 下载 `m-db-ui-linux-*` 文件并添加执行权限
+          - **macOS**: 下载 `m-db-ui-darwin-*` 文件
+
+          🔗 [项目主页](https://github.com/${{ github.repository }})
+        files: |
+          artifacts/*/*.tar.gz
+          artifacts/*/*.zip
+        draft: false
+        prerelease: false
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  docker:
+    name: Build Docker Image
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/')
+    needs: build
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v3
+
+    - name: Login to Docker Hub
+      if: github.event_name != 'pull_request'
+      uses: docker/login-action@v3
+      with:
+        username: ${{ secrets.DOCKER_USERNAME }}
+        password: ${{ secrets.DOCKER_PASSWORD }}
+
+    - name: Extract metadata
+      id: meta
+      uses: docker/metadata-action@v5
+      with:
+        images: ${{ github.repository }}
+        tags: |
+          type=ref,event=tag
+          type=raw,value=latest,enable={{is_default_branch}}
+
+    - name: Build and push Docker image
+      uses: docker/build-push-action@v5
+      with:
+        context: .
+        platforms: linux/amd64,linux/arm64
+        push: ${{ github.event_name != 'pull_request' }}
+        tags: ${{ steps.meta.outputs.tags }}
+        labels: ${{ steps.meta.outputs.labels }}
+        cache-from: type=gha
+        cache-to: type=gha,mode=max

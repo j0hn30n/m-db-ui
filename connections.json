@@ -1,0 +1,21 @@
+[
+  {
+    "id": "default",
+    "name": "本地MongoDB",
+    "host": "localhost",
+    "port": 27017,
+    "database": "",
+    "description": "默认本地MongoDB连接",
+    "createdAt": 1759879643,
+    "updatedAt": 1759879643
+  },
+  {
+    "id": "conn_1759881163",
+    "name": "测试",
+    "host": "127.0.0.1",
+    "port": 27017,
+    "database": "",
+    "createdAt": 1759881163,
+    "updatedAt": 1759881163
+  }
+]
