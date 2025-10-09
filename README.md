@@ -23,7 +23,7 @@
 
 1. 克隆项目
 ```bash
-git clone [<repository-url>](https://github.com/j0hn30n/m-db-ui.git)
+git clone [https://github.com/j0hn30n/m-db-ui.git](https://github.com/j0hn30n/m-db-ui.git)
 cd m-db-ui
 ```
 
